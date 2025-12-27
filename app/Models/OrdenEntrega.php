@@ -2,60 +2,77 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class OrdenEntrega extends BaseModel
 {
+    use HasFactory;
+
     protected $table = 'ordenes_entrega';
 
     protected $fillable = [
-        'empresa_id', 'numero', 'fecha', 'cliente_id', 'vendedor_id',
-        'zona_id', 'ruta_id', 'subtotal', 'descuento', 'itbms', 'total',
-        'estado', 'observaciones', 'firma_cliente', 'factura_id'
+        'empresa_id',
+        'numero',
+        'cliente_id',
+        'cliente_sucursal_id',
+        'vendedor_id',
+        'bodega_id',
+        'fecha',
+        'fecha_entrega',
+        'subtotal',
+        'itbms',
+        'total',
+        'estado',
+        'observaciones',
+        'factura_id',
+        'ruta_diaria_id',
     ];
 
     protected $casts = [
         'fecha' => 'date',
+        'fecha_entrega' => 'date',
         'subtotal' => 'decimal:2',
-        'descuento' => 'decimal:2',
         'itbms' => 'decimal:2',
         'total' => 'decimal:2',
     ];
 
-    public function empresa(): BelongsTo
+    public function empresa()
     {
         return $this->belongsTo(Empresa::class);
     }
 
-    public function cliente(): BelongsTo
+    public function cliente()
     {
         return $this->belongsTo(Cliente::class);
     }
 
-    public function vendedor(): BelongsTo
+    public function clienteSucursal()
+    {
+        return $this->belongsTo(ClienteSucursal::class);
+    }
+
+    public function vendedor()
     {
         return $this->belongsTo(User::class, 'vendedor_id');
     }
 
-    public function zona(): BelongsTo
+    public function bodega()
     {
-        return $this->belongsTo(Zona::class);
+        return $this->belongsTo(Bodega::class);
     }
 
-    public function ruta(): BelongsTo
+    public function factura()
     {
-        return $this->belongsTo(Ruta::class);
+        return $this->belongsTo(Factura::class);
     }
 
-    public function detalles(): HasMany
+    public function rutaDiaria()
+    {
+        return $this->belongsTo(RutaDiaria::class);
+    }
+
+    public function detalles()
     {
         return $this->hasMany(OrdenEntregaDetalle::class);
-    }
-
-    public function factura(): HasOne
-    {
-        return $this->hasOne(Factura::class);
     }
 }

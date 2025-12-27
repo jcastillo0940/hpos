@@ -6,34 +6,37 @@ use App\Models\OrdenEntrega;
 use App\Models\OrdenEntregaDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
-use App\Models\Factura;
+use App\Models\Bodega;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class OrdenEntregaController extends Controller
 {
     public function index()
     {
-        $ordenes = OrdenEntrega::with(['cliente', 'vendedor'])
+        $ordenesEntrega = OrdenEntrega::with(['cliente', 'vendedor', 'clienteSucursal'])
             ->empresaActual()
             ->latest('fecha')
             ->paginate(20);
         
-        return view('ordenes-entrega.index', compact('ordenes'));
+        return view('ordenes-entrega.index', compact('ordenesEntrega'));
     }
 
     public function create()
     {
         $clientes = Cliente::empresaActual()->where('activo', true)->get();
         $productos = Producto::empresaActual()->where('activo', true)->get();
+        $bodegas = Bodega::empresaActual()->where('activa', true)->get();
         
-        return view('ordenes-entrega.create', compact('clientes', 'productos'));
+        return view('ordenes-entrega.create', compact('clientes', 'productos', 'bodegas'));
     }
 
     public function store(Request $request)
     {
         $validated = $request->validate([
             'cliente_id' => 'required|exists:clientes,id',
+            'cliente_sucursal_id' => 'nullable|exists:clientes_sucursales,id',
             'fecha' => 'required|date',
             'observaciones' => 'nullable|string',
             'detalles' => 'required|array|min:1',
@@ -42,13 +45,11 @@ class OrdenEntregaController extends Controller
             'detalles.*.precio_unitario' => 'required|numeric|min:0',
         ]);
 
-        DB::transaction(function () use ($validated) {
-            $numero = $this->generarNumero();
-            
+        return DB::transaction(function () use ($validated, $request) {
             $subtotal = 0;
             $itbms = 0;
-            
-            foreach ($validated['detalles'] as $detalle) {
+
+            foreach ($request->detalles as $detalle) {
                 $producto = Producto::find($detalle['producto_id']);
                 $subtotalLinea = $detalle['cantidad'] * $detalle['precio_unitario'];
                 $itbmsLinea = $subtotalLinea * ($producto->itbms / 100);
@@ -56,60 +57,123 @@ class OrdenEntregaController extends Controller
                 $subtotal += $subtotalLinea;
                 $itbms += $itbmsLinea;
             }
-            
-            $orden = OrdenEntrega::create([
+
+            $total = $subtotal + $itbms;
+
+            $numero = 'OE-' . date('Ymd') . '-' . str_pad(OrdenEntrega::empresaActual()->count() + 1, 5, '0', STR_PAD_LEFT);
+
+            $ordenEntrega = OrdenEntrega::create([
                 'empresa_id' => auth()->user()->empresa_id,
                 'numero' => $numero,
-                'fecha' => $validated['fecha'],
                 'cliente_id' => $validated['cliente_id'],
+                'cliente_sucursal_id' => $validated['cliente_sucursal_id'] ?? null,
                 'vendedor_id' => auth()->id(),
+                'fecha' => $validated['fecha'],
                 'subtotal' => $subtotal,
                 'itbms' => $itbms,
-                'total' => $subtotal + $itbms,
+                'total' => $total,
+                'estado' => 'pendiente',
                 'observaciones' => $validated['observaciones'] ?? null,
             ]);
-            
-            foreach ($validated['detalles'] as $detalle) {
+
+            foreach ($request->detalles as $detalle) {
                 $producto = Producto::find($detalle['producto_id']);
                 $subtotalLinea = $detalle['cantidad'] * $detalle['precio_unitario'];
                 $itbmsLinea = $subtotalLinea * ($producto->itbms / 100);
-                
+                $totalLinea = $subtotalLinea + $itbmsLinea;
+
                 OrdenEntregaDetalle::create([
-                    'orden_entrega_id' => $orden->id,
+                    'orden_entrega_id' => $ordenEntrega->id,
                     'producto_id' => $detalle['producto_id'],
                     'cantidad' => $detalle['cantidad'],
                     'precio_unitario' => $detalle['precio_unitario'],
+                    'subtotal' => $subtotalLinea,
                     'itbms_porcentaje' => $producto->itbms,
                     'itbms_monto' => $itbmsLinea,
-                    'subtotal' => $subtotalLinea,
-                    'total' => $subtotalLinea + $itbmsLinea,
+                    'total' => $totalLinea,
                 ]);
             }
-        });
 
-        return redirect()->route('ordenes-entrega.index')
-            ->with('success', 'Orden de entrega creada exitosamente');
+            return redirect()->route('ordenes-entrega.show', $ordenEntrega)
+                ->with('success', 'Orden de entrega creada exitosamente');
+        });
     }
 
-    public function show(OrdenEntrega $ordenEntrega)
+    public function show($id)
     {
-        $ordenEntrega->load(['cliente', 'vendedor', 'detalles.producto']);
+        $ordenEntrega = OrdenEntrega::with(['cliente', 'clienteSucursal', 'vendedor', 'detalles.producto'])
+            ->findOrFail($id);
         
         return view('ordenes-entrega.show', compact('ordenEntrega'));
     }
 
-    public function aprobar(OrdenEntrega $ordenEntrega)
+    public function edit($id)
     {
-        $ordenEntrega->update(['estado' => 'aprobada']);
+        $ordenEntrega = OrdenEntrega::findOrFail($id);
+        $clientes = Cliente::empresaActual()->where('activo', true)->get();
+        $productos = Producto::empresaActual()->where('activo', true)->get();
+        $bodegas = Bodega::empresaActual()->where('activa', true)->get();
         
-        return redirect()->back()->with('success', 'Orden aprobada');
+        return view('ordenes-entrega.edit', compact('ordenEntrega', 'clientes', 'productos', 'bodegas'));
     }
 
-    public function anular(OrdenEntrega $ordenEntrega)
+    public function update(Request $request, $id)
     {
+        $ordenEntrega = OrdenEntrega::findOrFail($id);
+        
+        $validated = $request->validate([
+            'cliente_id' => 'required|exists:clientes,id',
+            'cliente_sucursal_id' => 'nullable|exists:clientes_sucursales,id',
+            'fecha' => 'required|date',
+            'observaciones' => 'nullable|string',
+        ]);
+
+        $ordenEntrega->update($validated);
+
+        return redirect()->route('ordenes-entrega.show', $ordenEntrega)
+            ->with('success', 'Orden de entrega actualizada exitosamente');
+    }
+
+    public function destroy($id)
+    {
+        $ordenEntrega = OrdenEntrega::findOrFail($id);
+        $ordenEntrega->delete();
+        
+        return redirect()->route('ordenes-entrega.index')
+            ->with('success', 'Orden de entrega eliminada exitosamente');
+    }
+
+    public function pdf($id)
+    {
+        $ordenEntrega = OrdenEntrega::with(['cliente', 'clienteSucursal', 'vendedor', 'detalles.producto', 'empresa'])
+            ->findOrFail($id);
+        
+        $pdf = Pdf::loadView('ordenes-entrega.pdf', compact('ordenEntrega'));
+        
+        return $pdf->stream('orden-entrega-' . $ordenEntrega->numero . '.pdf');
+    }
+
+    public function aprobar($id)
+    {
+        $ordenEntrega = OrdenEntrega::findOrFail($id);
+        $ordenEntrega->update(['estado' => 'aprobada']);
+        
+        return redirect()->back()->with('success', 'Orden de entrega aprobada');
+    }
+
+    public function anular($id)
+    {
+        $ordenEntrega = OrdenEntrega::findOrFail($id);
         $ordenEntrega->update(['estado' => 'anulada']);
         
-        return redirect()->back()->with('success', 'Orden anulada');
+        return redirect()->back()->with('success', 'Orden de entrega anulada');
+    }
+
+    public function getSucursales(Cliente $cliente)
+    {
+        $sucursales = $cliente->sucursales()->where('activa', true)->get();
+        
+        return response()->json($sucursales);
     }
 
     public function convertirFactura(Request $request)
@@ -120,80 +184,17 @@ class OrdenEntregaController extends Controller
         ]);
 
         return DB::transaction(function () use ($validated) {
-            $ordenes = OrdenEntrega::whereIn('id', $validated['ordenes'])
-                ->where('estado', 'aprobada')
-                ->with('detalles.producto')
-                ->get();
-            
-            $primeraOrden = $ordenes->first();
-            
-            $factura = Factura::create([
-                'empresa_id' => $primeraOrden->empresa_id,
-                'numero' => $this->generarNumeroFactura(),
-                'fecha' => now(),
-                'cliente_id' => $primeraOrden->cliente_id,
-                'vendedor_id' => $primeraOrden->vendedor_id,
-                'subtotal' => $ordenes->sum('subtotal'),
-                'itbms' => $ordenes->sum('itbms'),
-                'total' => $ordenes->sum('total'),
-                'tipo_pago' => 'credito',
-                'saldo_pendiente' => $ordenes->sum('total'),
-            ]);
-            
-            foreach ($ordenes as $orden) {
-                foreach ($orden->detalles as $detalle) {
-                    $factura->detalles()->create([
-                        'producto_id' => $detalle->producto_id,
-                        'cantidad' => $detalle->cantidad,
-                        'precio_unitario' => $detalle->precio_unitario,
-                        'costo_unitario' => $detalle->producto->costo_unitario,
-                        'itbms_porcentaje' => $detalle->itbms_porcentaje,
-                        'itbms_monto' => $detalle->itbms_monto,
-                        'subtotal' => $detalle->subtotal,
-                        'total' => $detalle->total,
-                    ]);
+            foreach ($validated['ordenes'] as $ordenId) {
+                $orden = OrdenEntrega::findOrFail($ordenId);
+                
+                if ($orden->estado != 'aprobada') {
+                    continue;
                 }
                 
-                $orden->update([
-                    'estado' => 'facturada',
-                    'factura_id' => $factura->id,
-                ]);
+                $orden->update(['estado' => 'facturada']);
             }
             
-            return redirect()->route('facturas.show', $factura)
-                ->with('success', 'Factura creada exitosamente');
+            return redirect()->back()->with('success', 'Órdenes convertidas a facturas exitosamente');
         });
-    }
-
-    protected function generarNumero()
-    {
-        $ultimo = OrdenEntrega::where('empresa_id', auth()->user()->empresa_id)
-            ->whereYear('fecha', date('Y'))
-            ->max('numero');
-        
-        if (!$ultimo) {
-            return 'OE-' . date('Y') . '-0001';
-        }
-        
-        $partes = explode('-', $ultimo);
-        $numero = intval($partes[2]) + 1;
-        
-        return 'OE-' . date('Y') . '-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
-    }
-
-    protected function generarNumeroFactura()
-    {
-        $ultimo = Factura::where('empresa_id', auth()->user()->empresa_id)
-            ->whereYear('fecha', date('Y'))
-            ->max('numero');
-        
-        if (!$ultimo) {
-            return 'FAC-' . date('Y') . '-0001';
-        }
-        
-        $partes = explode('-', $ultimo);
-        $numero = intval($partes[2]) + 1;
-        
-        return 'FAC-' . date('Y') . '-' . str_pad($numero, 4, '0', STR_PAD_LEFT);
     }
 }

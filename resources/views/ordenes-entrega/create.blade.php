@@ -12,11 +12,23 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
                 <div>
                     <label class="block text-sm font-medium text-slate-700 mb-2">Cliente *</label>
-                    <select name="cliente_id" required x-model="clienteId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                    <select name="cliente_id" required x-model="clienteId" @change="cargarSucursales" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                         <option value="">Seleccionar cliente</option>
                         @foreach($clientes as $cliente)
                             <option value="{{ $cliente->id }}">{{ $cliente->nombre_comercial }}</option>
                         @endforeach
+                    </select>
+                </div>
+
+                <div x-show="sucursales.length > 0">
+                    <label class="block text-sm font-medium text-slate-700 mb-2">
+                        <i class="bi bi-building text-blue-600"></i> Sucursal
+                    </label>
+                    <select name="cliente_sucursal_id" x-model="sucursalId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">Dirección principal</option>
+                        <template x-for="sucursal in sucursales" :key="sucursal.id">
+                            <option :value="sucursal.id" x-text="sucursal.nombre + ' - ' + sucursal.direccion"></option>
+                        </template>
                     </select>
                 </div>
 
@@ -25,7 +37,7 @@
                     <input type="date" name="fecha" required value="{{ date('Y-m-d') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
 
-                <div>
+                <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-slate-700 mb-2">Observaciones</label>
                     <input type="text" name="observaciones" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
                 </div>
@@ -105,7 +117,26 @@
 function ordenEntrega() {
     return {
         clienteId: '',
+        sucursalId: '',
+        sucursales: [],
         items: [],
+        
+        async cargarSucursales() {
+            if (!this.clienteId) {
+                this.sucursales = [];
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/clientes/${this.clienteId}/sucursales`);
+                const data = await response.json();
+                this.sucursales = data;
+                this.sucursalId = '';
+            } catch (error) {
+                console.error('Error cargando sucursales:', error);
+            }
+        },
+        
         agregarProducto() {
             this.items.push({
                 producto_id: '',
@@ -114,22 +145,27 @@ function ordenEntrega() {
                 subtotal: 0
             });
         },
+        
         eliminarProducto(index) {
             this.items.splice(index, 1);
         },
+        
         actualizarPrecio(index) {
             const select = event.target;
             const precio = select.options[select.selectedIndex].dataset.precio;
             this.items[index].precio_unitario = parseFloat(precio);
             this.calcularSubtotal(index);
         },
+        
         calcularSubtotal(index) {
             const item = this.items[index];
             item.subtotal = item.cantidad * item.precio_unitario;
         },
+        
         calcularTotal() {
             return this.items.reduce((total, item) => total + item.subtotal, 0);
         },
+        
         prepareSubmit(e) {
             if (this.items.length === 0) {
                 e.preventDefault();

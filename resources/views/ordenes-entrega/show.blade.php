@@ -8,10 +8,14 @@
     <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
         <div class="flex justify-between items-start mb-6">
             <div>
-                <h3 class="text-2xl font-bold text-slate-800">{{ $ordenEntrega->numero }}</h3>
-                <p class="text-slate-600">{{ $ordenEntrega->fecha->format('d/m/Y') }}</p>
+                <h3 class="text-2xl font-bold text-slate-800">{{ $ordenEntrega->numero ?? 'N/A' }}</h3>
+                <p class="text-slate-600">{{ $ordenEntrega->fecha ? $ordenEntrega->fecha->format('d/m/Y') : 'Sin fecha' }}</p>
             </div>
             <div class="flex space-x-2">
+                <a href="{{ route('ordenes-entrega.pdf', $ordenEntrega) }}" target="_blank" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition">
+                    <i class="bi bi-file-pdf mr-2"></i>PDF
+                </a>
+                
                 @if($ordenEntrega->estado == 'pendiente')
                     @can('convertir_ordenes_entrega')
                     <form method="POST" action="{{ route('ordenes-entrega.aprobar', $ordenEntrega) }}">
@@ -35,11 +39,20 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
                 <p class="text-sm text-slate-600">Cliente</p>
-                <p class="font-medium">{{ $ordenEntrega->cliente->nombre_comercial }}</p>
+                <p class="font-medium">{{ $ordenEntrega->cliente->nombre_comercial ?? 'N/A' }}</p>
             </div>
+            
+            @if($ordenEntrega->clienteSucursal)
+            <div>
+                <p class="text-sm text-slate-600">Sucursal</p>
+                <p class="font-medium">{{ $ordenEntrega->clienteSucursal->nombre }}</p>
+                <p class="text-sm text-slate-500">{{ $ordenEntrega->clienteSucursal->direccion }}</p>
+            </div>
+            @endif
+            
             <div>
                 <p class="text-sm text-slate-600">Vendedor</p>
-                <p class="font-medium">{{ $ordenEntrega->vendedor->name }}</p>
+                <p class="font-medium">{{ $ordenEntrega->vendedor->name ?? 'N/A' }}</p>
             </div>
             <div>
                 <p class="text-sm text-slate-600">Estado</p>
@@ -69,7 +82,7 @@
                 <tbody class="divide-y divide-gray-200">
                     @foreach($ordenEntrega->detalles as $detalle)
                     <tr>
-                        <td class="px-4 py-3">{{ $detalle->producto->nombre }}</td>
+                        <td class="px-4 py-3">{{ $detalle->producto->nombre ?? 'N/A' }}</td>
                         <td class="px-4 py-3">{{ $detalle->cantidad }}</td>
                         <td class="px-4 py-3">B/. {{ number_format($detalle->precio_unitario, 2) }}</td>
                         <td class="px-4 py-3">B/. {{ number_format($detalle->subtotal, 2) }}</td>
