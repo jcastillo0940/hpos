@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Factura;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FacturaController extends Controller
 {
@@ -17,24 +18,28 @@ class FacturaController extends Controller
         return view('facturas.index', compact('facturas'));
     }
 
-    public function show(Factura $factura)
+    public function show($id)
     {
-        $factura->load(['cliente', 'vendedor', 'detalles.producto']);
+        $factura = Factura::with(['cliente', 'vendedor', 'detalles.producto'])
+            ->findOrFail($id);
         
         return view('facturas.show', compact('factura'));
     }
 
-    public function pdf(Factura $factura)
+    public function pdf($id)
     {
-        $factura->load(['cliente', 'vendedor', 'detalles.producto', 'empresa']);
+        $factura = Factura::with(['cliente', 'vendedor', 'detalles.producto', 'empresa'])
+            ->findOrFail($id);
         
         $pdf = \PDF::loadView('facturas.pdf', compact('factura'));
         
-        return $pdf->download("factura-{$factura->numero}.pdf");
+        return $pdf->stream("factura-{$factura->numero}.pdf");
     }
 
-    public function anular(Factura $factura)
+    public function anular($id)
     {
+        $factura = Factura::with(['detalles', 'cliente'])->findOrFail($id);
+        
         if ($factura->saldo_pendiente < $factura->total) {
             return redirect()->back()
                 ->with('error', 'No se puede anular una factura con pagos aplicados');
@@ -55,12 +60,7 @@ class FacturaController extends Controller
                 }
             }
             
-            // Reversar saldo cliente
-            $cliente = $factura->cliente;
-            $cliente->saldo_actual -= $factura->total;
-            $cliente->save();
-            
-            // Anular asientos contables
+            // Anular asientos contables si existen
             $asientos = \App\Models\AsientoContable::where('origen', 'factura')
                 ->where('origen_id', $factura->id)
                 ->get();
@@ -69,7 +69,17 @@ class FacturaController extends Controller
                 $asiento->update(['estado' => 'anulado']);
             }
             
+            // Anular factura
             $factura->update(['estado' => 'anulada']);
+            
+            // Actualizar saldos del cliente
+           // $factura->cliente->actualizarSaldos();
+           // 
+            // Registrar actividad
+            activity()
+                ->causedBy(auth()->user())
+                ->performedOn($factura)
+                ->log('Factura anulada');
         });
 
         return redirect()->back()->with('success', 'Factura anulada exitosamente');

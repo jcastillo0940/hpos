@@ -187,6 +187,34 @@ class OrdenCompraController extends Controller
         });
     }
 
+    public function detallesApi($id)
+    {
+        $ordenCompra = OrdenCompra::with(['detalles.producto'])
+            ->findOrFail($id);
+        
+        return response()->json([
+            'orden' => [
+                'id' => $ordenCompra->id,
+                'numero' => $ordenCompra->numero,
+                'proveedor_id' => $ordenCompra->proveedor_id,
+                'bodega_destino_id' => $ordenCompra->bodega_destino_id,
+            ],
+            'detalles' => $ordenCompra->detalles->map(function($detalle) {
+                return [
+                    'producto_id' => $detalle->producto_id,
+                    'cantidad_solicitada' => $detalle->cantidad_solicitada,
+                    'cantidad_recibida' => $detalle->cantidad_recibida ?? 0,
+                    'precio_unitario' => $detalle->precio_unitario,
+                    'producto' => [
+                        'id' => $detalle->producto->id,
+                        'codigo' => $detalle->producto->codigo,
+                        'nombre' => $detalle->producto->nombre,
+                    ],
+                ];
+            })
+        ]);
+    }
+
     protected function generarNumero()
     {
         $ultimo = OrdenCompra::where('empresa_id', auth()->user()->empresa_id)

@@ -26,6 +26,7 @@
         [x-cloak] { display: none !important; }
     </style>
     
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     
     @stack('styles')
@@ -50,7 +51,8 @@
         </div>
 
         <!-- Navigation -->
-        <nav class="px-4 py-6 space-y-1">
+        <nav class="px-4 py-6 space-y-1" x-data="menuState()">
+            <!-- Dashboard -->
             <a href="{{ route('dashboard') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('dashboard') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
                 <i class="bi bi-speedometer2 text-lg"></i>
                 <span class="font-medium">Dashboard</span>
@@ -58,97 +60,152 @@
 
             <!-- Ventas Section -->
             @can('ver_ordenes_entrega')
-            <div class="pt-4 pb-2">
-                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Ventas</p>
+            <div class="pt-4">
+                <button @click="toggleMenu('ventas')" class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-200 transition">
+                    <span>Ventas</span>
+                    <i class="bi transition-transform duration-200" :class="openMenus.ventas ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                </button>
             </div>
             
-            <a href="{{ route('ordenes-entrega.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('ordenes-entrega.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-file-earmark-text text-lg"></i>
-                <span class="font-medium">Órdenes de Entrega</span>
-            </a>
-            @endcan
+            <div x-show="openMenus.ventas" x-collapse class="space-y-1">
+                <a href="{{ route('ordenes-entrega.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('ordenes-entrega.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span>Órdenes de Entrega</span>
+                </a>
 
-            @can('ver_facturas')
-            <a href="{{ route('facturas.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('facturas.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-receipt text-lg"></i>
-                <span class="font-medium">Facturas</span>
-            </a>
-            @endcan
+                @can('ver_facturas')
+                <a href="{{ route('facturas.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('facturas.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-receipt"></i>
+                    <span>Facturas</span>
+                </a>
+                @endcan
 
-            @can('ver_notas_credito')
-            <a href="{{ route('notas-credito.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('notas-credito.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-arrow-return-left text-lg"></i>
-                <span class="font-medium">Notas de Crédito</span>
-            </a>
-            @endcan
+                @can('ver_notas_credito')
+                <a href="{{ route('notas-credito.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('notas-credito.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-arrow-return-left"></i>
+                    <span>Notas de Crédito</span>
+                </a>
+                @endcan
 
-            @can('ver_cobranza')
-            <a href="{{ route('cobros.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('cobros.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-cash-coin text-lg"></i>
-                <span class="font-medium">Cobros</span>
-            </a>
-            @endcan
+                @can('ver_cobranza')
+                <a href="{{ route('cobros.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('cobros.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-cash-coin"></i>
+                    <span>Cobros</span>
+                </a>
+                @endcan
 
-            @can('ver_rutas')
-            <a href="{{ route('rutas-diarias.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('rutas-diarias.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-truck text-lg"></i>
-                <span class="font-medium">Rutas Diarias</span>
-            </a>
+                @can('ver_rutas')
+                <a href="{{ route('rutas-diarias.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('rutas-diarias.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-truck"></i>
+                    <span>Rutas Diarias</span>
+                </a>
+                @endcan
+            </div>
             @endcan
 
             <!-- Compras Section -->
             @can('ver_ordenes_compra')
-            <div class="pt-4 pb-2">
-                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Compras</p>
+            <div class="pt-4">
+                <button @click="toggleMenu('compras')" class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-200 transition">
+                    <span>Compras</span>
+                    <i class="bi transition-transform duration-200" :class="openMenus.compras ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                </button>
             </div>
 
-            <a href="{{ route('ordenes-compra.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('ordenes-compra.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-cart-plus text-lg"></i>
-                <span class="font-medium">Órdenes de Compra</span>
-            </a>
+            <div x-show="openMenus.compras" x-collapse class="space-y-1">
+                <a href="{{ route('ordenes-compra.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('ordenes-compra.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-cart-plus"></i>
+                    <span>Órdenes de Compra</span>
+                </a>
+
+                <a href="{{ route('recepciones-compra.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('recepciones-compra.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-box-arrow-in-down"></i>
+                    <span>Recepciones</span>
+                </a>
+
+                <a href="{{ route('facturas-compra.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('facturas-compra.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-file-earmark-check"></i>
+                    <span>Facturas de Compra</span>
+                </a>
+
+                <a href="{{ route('pagos.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('pagos.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-credit-card"></i>
+                    <span>Pagos</span>
+                </a>
+            </div>
             @endcan
 
             <!-- Catálogos -->
-            <div class="pt-4 pb-2">
-                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Catálogos</p>
+            <div class="pt-4">
+                <button @click="toggleMenu('catalogos')" class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-200 transition">
+                    <span>Catálogos</span>
+                    <i class="bi transition-transform duration-200" :class="openMenus.catalogos ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+                </button>
             </div>
 
-            <a href="{{ route('clientes.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('clientes.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-people text-lg"></i>
-                <span class="font-medium">Clientes</span>
-            </a>
+            <div x-show="openMenus.catalogos" x-collapse class="space-y-1">
+                <a href="{{ route('clientes.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('clientes.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-people"></i>
+                    <span>Clientes</span>
+                </a>
 
-            <a href="{{ route('productos.index') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('productos.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-box-seam text-lg"></i>
-                <span class="font-medium">Productos</span>
-            </a>
+                <a href="{{ route('proveedores.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('proveedores.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-building"></i>
+                    <span>Proveedores</span>
+                </a>
+
+                <a href="{{ route('productos.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('productos.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-box-seam"></i>
+                    <span>Productos</span>
+                </a>
+
+                <a href="{{ route('bodegas.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('bodegas.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-boxes"></i>
+                    <span>Bodegas</span>
+                </a>
+
+                <a href="{{ route('listas-precios.index') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('listas-precios.*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+                    <i class="bi bi-tag"></i>
+                    <span>Listas de Precios</span>
+                </a>
+            </div>
 
             <!-- Reportes -->
-            @can('ver_reportes_ventas')
-            <div class="pt-4 pb-2">
-                <p class="px-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Reportes</p>
-            </div>
+@can('ver_reportes_ventas')
+<div class="pt-4">
+    <button @click="toggleMenu('reportes')" class="w-full flex items-center justify-between px-4 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider hover:text-slate-200 transition">
+        <span>Reportes</span>
+        <i class="bi transition-transform duration-200" :class="openMenus.reportes ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+    </button>
+</div>
 
-            <a href="{{ route('reportes.ventas') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.ventas') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-graph-up text-lg"></i>
-                <span class="font-medium">Ventas</span>
-            </a>
+<div x-show="openMenus.reportes" x-collapse class="space-y-1">
+    <a href="{{ route('reportes.ventas') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.ventas') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+        <i class="bi bi-graph-up"></i>
+        <span>Ventas</span>
+    </a>
 
-            <a href="{{ route('reportes.estado-resultados') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.estado-resultados') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-file-earmark-bar-graph text-lg"></i>
-                <span class="font-medium">Estado de Resultados</span>
-            </a>
+    <a href="{{ route('reportes.estado-cuenta') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.estado-cuenta*') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+        <i class="bi bi-file-earmark-text"></i>
+        <span>Estado de Cuenta</span>
+    </a>
 
-            <a href="{{ route('reportes.cuentas-cobrar') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.cuentas-cobrar') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-wallet2 text-lg"></i>
-                <span class="font-medium">Cuentas por Cobrar</span>
-            </a>
+    <a href="{{ route('reportes.cuentas-cobrar') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.cuentas-cobrar') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+        <i class="bi bi-wallet2"></i>
+        <span>Cuentas por Cobrar</span>
+    </a>
 
-            <a href="{{ route('reportes.inventario') }}" class="flex items-center space-x-3 px-4 py-3 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.inventario') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
-                <i class="bi bi-boxes text-lg"></i>
-                <span class="font-medium">Inventario</span>
-            </a>
-            @endcan
+    <a href="{{ route('reportes.estado-resultados') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.estado-resultados') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+        <i class="bi bi-file-earmark-bar-graph"></i>
+        <span>Estado de Resultados</span>
+    </a>
+
+    <a href="{{ route('reportes.inventario') }}" class="flex items-center space-x-3 px-4 py-2.5 pl-8 rounded-lg hover:bg-slate-800 transition {{ request()->routeIs('reportes.inventario') ? 'bg-slate-800 text-white' : 'text-slate-300' }}">
+        <i class="bi bi-boxes"></i>
+        <span>Inventario</span>
+    </a>
+</div>
+@endcan
         </nav>
     </aside>
 
@@ -264,5 +321,22 @@
     </div>
 
     @stack('scripts')
+    
+    <script>
+function menuState() {
+    return {
+        openMenus: {
+            ventas: {{ request()->routeIs('ordenes-entrega.*', 'facturas.*', 'notas-credito.*', 'cobros.*', 'rutas-diarias.*') ? 'true' : 'false' }},
+            compras: {{ request()->routeIs('ordenes-compra.*', 'recepciones-compra.*', 'facturas-compra.*', 'pagos.*') ? 'true' : 'false' }},
+            catalogos: {{ request()->routeIs('clientes.*', 'proveedores.*', 'productos.*', 'bodegas.*', 'listas-precios.*') ? 'true' : 'false' }},
+            reportes: {{ request()->routeIs('reportes.*') ? 'true' : 'false' }}
+        },
+        
+        toggleMenu(menu) {
+            this.openMenus[menu] = !this.openMenus[menu];
+        }
+    }
+}
+</script>
 </body>
 </html>

@@ -8,15 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Cobro extends BaseModel
 {
     protected $fillable = [
-        'empresa_id', 'numero', 'fecha', 'cliente_id', 'usuario_id',
-        'tipo_pago', 'referencia', 'banco', 'comprobante_path',
-        'monto', 'estado', 'observaciones'
-    ];
+    'empresa_id', 'numero', 'fecha', 'cliente_id', 'usuario_id',
+    'tipo_pago', 'es_factoring', 'descuento_factoring', 'porcentaje_factoring', 'financiera',
+    'referencia', 'banco', 'comprobante_path',
+    'monto', 'estado', 'observaciones'
+];
 
-    protected $casts = [
-        'fecha' => 'date',
-        'monto' => 'decimal:2',
-    ];
+protected $casts = [
+    'fecha' => 'date',
+    'monto' => 'decimal:2',
+    'descuento_factoring' => 'decimal:2',
+    'porcentaje_factoring' => 'decimal:2',
+    'es_factoring' => 'boolean',
+];
 
     public function empresa(): BelongsTo
     {

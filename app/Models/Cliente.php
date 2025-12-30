@@ -97,4 +97,29 @@ class Cliente extends BaseModel
     {
         return $this->hasMany(Cobro::class);
     }
+	
+	/**
+ * Actualizar saldos del cliente
+ */
+public function actualizarSaldos()
+{
+    // Total de facturas pendientes
+    $totalFacturas = $this->facturas()
+        ->whereIn('estado', ['pendiente', 'parcial'])
+        ->sum('saldo_pendiente');
+    
+    // Saldo actual
+    $this->saldo_actual = $totalFacturas;
+    
+    // Saldo vencido (facturas con más de X días de vencimiento)
+    $diasCredito = $this->dias_credito ?? 30;
+    $fechaLimite = now()->subDays($diasCredito);
+    
+    $this->saldo_vencido = $this->facturas()
+        ->whereIn('estado', ['pendiente', 'parcial'])
+        ->where('fecha', '<', $fechaLimite)
+        ->sum('saldo_pendiente');
+    
+    $this->save();
+}
 }

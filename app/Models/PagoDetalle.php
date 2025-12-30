@@ -27,4 +27,3 @@ class PagoDetalle extends Model
         return $this->belongsTo(FacturaCompra::class);
     }
 }
-}

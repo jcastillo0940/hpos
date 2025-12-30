@@ -9,7 +9,7 @@
         <div class="flex justify-between items-start mb-6">
             <div>
                 <h3 class="text-2xl font-bold text-slate-800">{{ $ordenCompra->numero }}</h3>
-                <p class="text-slate-600">{{ $ordenCompra->fecha->format('d/m/Y') }}</p>
+                <p class="text-slate-600">{{ $ordenCompra->fecha ? \Carbon\Carbon::parse($ordenCompra->fecha)->format('d/m/Y') : 'Sin fecha' }}</p>
             </div>
             <div class="flex space-x-2">
                 @if($ordenCompra->estado == 'borrador')
@@ -19,6 +19,12 @@
                         <i class="bi bi-check-circle mr-2"></i>Aprobar
                     </button>
                 </form>
+                @endif
+
+                @if(in_array($ordenCompra->estado, ['aprobada', 'recibida']))
+                <a href="{{ route('facturas-compra.create', ['orden_compra_id' => $ordenCompra->id]) }}" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">
+                    <i class="bi bi-receipt mr-2"></i>Crear Factura
+                </a>
                 @endif
                 
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium 
@@ -37,11 +43,11 @@
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             <div>
                 <p class="text-sm text-slate-600">Proveedor</p>
-                <p class="font-medium">{{ $ordenCompra->proveedor->razon_social }}</p>
+                <p class="font-medium">{{ $ordenCompra->proveedor->razon_social ?? 'Sin proveedor' }}</p>
             </div>
             <div>
                 <p class="text-sm text-slate-600">Bodega Destino</p>
-                <p class="font-medium">{{ $ordenCompra->bodegaDestino->nombre }}</p>
+                <p class="font-medium">{{ $ordenCompra->bodegaDestino->nombre ?? 'Sin bodega' }}</p>
             </div>
             <div>
                 <p class="text-sm text-slate-600">Total</p>

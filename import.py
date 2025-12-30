@@ -6,389 +6,255 @@ def create_file(path, content):
         f.write(content)
     print(f"✓ Created: {path}")
 
-base_path = "resources/views"
+# Vista principal de Estado de Cuenta
+create_file("resources/views/reportes/estado-cuenta.blade.php", """@extends('layouts.app')
 
-create_file(f"{base_path}/ordenes-entrega/create.blade.php", """@extends('layouts.app')
-
-@section('title', 'Nueva Orden de Entrega')
-@section('page-title', 'Nueva Orden de Entrega')
+@section('title', 'Estado de Cuenta del Cliente')
+@section('page-title', 'Estado de Cuenta del Cliente')
 
 @section('content')
-<div class="max-w-6xl mx-auto" x-data="ordenEntrega()">
-    <div class="bg-white rounded-xl shadow-sm p-6">
-        <form method="POST" action="{{ route('ordenes-entrega.store') }}" @submit="prepareSubmit">
-            @csrf
+<div class="max-w-7xl mx-auto">
+    <!-- Filtros -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <h3 class="text-lg font-semibold text-slate-800 mb-4">
+            <i class="bi bi-funnel mr-2"></i>Filtros
+        </h3>
+        
+        <form method="GET" action="{{ route('reportes.estado-cuenta') }}" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Cliente *</label>
+                <select name="cliente_id" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="this.form.submit()">
+                    <option value="">Seleccionar cliente...</option>
+                    @foreach($clientes as $c)
+                    <option value="{{ $c->id }}" {{ $cliente && $cliente->id == $c->id ? 'selected' : '' }}>
+                        {{ $c->codigo }} - {{ $c->nombre_comercial }}
+                    </option>
+                    @endforeach
+                </select>
+            </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Cliente *</label>
-                    <select name="cliente_id" required x-model="clienteId" @change="cargarSucursales" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <option value="">Seleccionar cliente</option>
-                        @foreach($clientes as $cliente)
-                            <option value="{{ $cliente->id }}">{{ $cliente->nombre_comercial }}</option>
-                        @endforeach
-                    </select>
-                </div>
-
-                <div x-show="sucursales.length > 0">
-                    <label class="block text-sm font-medium text-slate-700 mb-2">
-                        <i class="bi bi-building text-blue-600"></i> Sucursal
-                    </label>
-                    <select name="cliente_sucursal_id" x-model="sucursalId" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                        <option value="">Dirección principal</option>
-                        <template x-for="sucursal in sucursales" :key="sucursal.id">
-                            <option :value="sucursal.id" x-text="sucursal.nombre + ' - ' + sucursal.direccion"></option>
-                        </template>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Fecha *</label>
-                    <input type="date" name="fecha" required value="{{ date('Y-m-d') }}" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                </div>
-
-                <div class="md:col-span-3">
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Observaciones</label>
-                    <input type="text" name="observaciones" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                </div>
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Año</label>
+                <select name="año" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="this.form.submit()">
+                    @for($y = date('Y'); $y >= date('Y') - 5; $y--)
+                    <option value="{{ $y }}" {{ $año == $y ? 'selected' : '' }}>{{ $y }}</option>
+                    @endfor
+                </select>
             </div>
-
-            <div class="mb-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h4 class="font-semibold text-slate-800">Productos</h4>
-                    <button type="button" @click="agregarProducto" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition text-sm">
-                        <i class="bi bi-plus-circle mr-2"></i>Agregar Producto
-                    </button>
-                </div>
-
-                <div class="overflow-x-auto">
-                    <table class="min-w-full">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Producto</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Precio</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Subtotal</th>
-                                <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Acción</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <template x-for="(item, index) in items" :key="index">
-                                <tr>
-                                    <td class="px-4 py-2">
-                                        <select :name="'detalles['+index+'][producto_id]'" required x-model="item.producto_id" @change="actualizarPrecio(index)" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                                            <option value="">Seleccionar</option>
-                                            @foreach($productos as $producto)
-                                                <option value="{{ $producto->id }}" data-precio="{{ $producto->precio_venta }}">{{ $producto->nombre }}</option>
-                                            @endforeach
-                                        </select>
-                                    </td>
-                                    <td class="px-4 py-2">
-                                        <input type="number" :name="'detalles['+index+'][cantidad]'" required step="0.01" x-model="item.cantidad" @input="calcularSubtotal(index)" class="w-24 px-3 py-2 border border-gray-300 rounded-lg">
-                                    </td>
-                                    <td class="px-4 py-2">
-                                        <input type="number" :name="'detalles['+index+'][precio_unitario]'" required step="0.01" x-model="item.precio_unitario" @input="calcularSubtotal(index)" class="w-32 px-3 py-2 border border-gray-300 rounded-lg">
-                                    </td>
-                                    <td class="px-4 py-2">
-                                        <span class="font-bold" x-text="'B/. ' + item.subtotal.toFixed(2)"></span>
-                                    </td>
-                                    <td class="px-4 py-2">
-                                        <button type="button" @click="eliminarProducto(index)" class="text-red-600 hover:text-red-800">
-                                            <i class="bi bi-trash"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            </template>
-                            <tr x-show="items.length === 0">
-                                <td colspan="5" class="px-4 py-8 text-center text-slate-400">No hay productos agregados</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-2">Mes</label>
+                <select name="mes" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" onchange="this.form.submit()">
+                    <option value="0" {{ $mes == 0 ? 'selected' : '' }}>Todo el año</option>
+                    @foreach(['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'] as $i => $m)
+                    <option value="{{ $i + 1 }}" {{ $mes == ($i + 1) ? 'selected' : '' }}>{{ $m }}</option>
+                    @endforeach
+                </select>
             </div>
-
-            <div class="flex justify-between items-center">
-                <div class="text-right">
-                    <p class="text-lg font-semibold">Total: <span class="text-blue-600" x-text="'B/. ' + calcularTotal().toFixed(2)"></span></p>
-                </div>
-                <div class="flex space-x-3">
-                    <a href="{{ route('ordenes-entrega.index') }}" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-slate-700 rounded-lg transition">Cancelar</a>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
-                        <i class="bi bi-check-circle mr-2"></i>Guardar Orden
-                    </button>
-                </div>
+            
+            <div class="flex items-end">
+                <button type="submit" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
+                    <i class="bi bi-search mr-2"></i>Consultar
+                </button>
             </div>
         </form>
     </div>
+
+    @if($cliente)
+    <!-- Información del Cliente -->
+    <div class="bg-white rounded-xl shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <h3 class="text-2xl font-bold text-slate-800">{{ $cliente->nombre_comercial }}</h3>
+                <p class="text-slate-600">RUC: {{ $cliente->identificacion }}</p>
+                <p class="text-sm text-slate-500">{{ $cliente->direccion ?? 'Sin dirección' }}</p>
+            </div>
+            <div class="text-right">
+                <a href="{{ route('reportes.estado-cuenta-pdf', ['cliente_id' => $cliente->id, 'año' => $año, 'mes' => $mes]) }}" 
+                   target="_blank"
+                   class="inline-flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition mb-2">
+                    <i class="bi bi-file-pdf mr-2"></i>Descargar PDF
+                </a>
+                <br>
+                <button onclick="window.print()" class="inline-flex items-center px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition">
+                    <i class="bi bi-printer mr-2"></i>Imprimir
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-4 gap-4">
+            <div class="text-center p-4 bg-blue-50 rounded-lg">
+                <p class="text-sm text-blue-600 font-medium">Límite de Crédito</p>
+                <p class="text-2xl font-bold text-blue-700">B/. {{ number_format($cliente->limite_credito, 2) }}</p>
+            </div>
+            <div class="text-center p-4 bg-amber-50 rounded-lg">
+                <p class="text-sm text-amber-600 font-medium">Saldo Actual</p>
+                <p class="text-2xl font-bold text-amber-700">B/. {{ number_format($cliente->saldo_actual, 2) }}</p>
+            </div>
+            <div class="text-center p-4 bg-red-50 rounded-lg">
+                <p class="text-sm text-red-600 font-medium">Saldo Vencido</p>
+                <p class="text-2xl font-bold text-red-700">B/. {{ number_format($cliente->saldo_vencido, 2) }}</p>
+            </div>
+            <div class="text-center p-4 bg-green-50 rounded-lg">
+                <p class="text-sm text-green-600 font-medium">Crédito Disponible</p>
+                <p class="text-2xl font-bold text-green-700">B/. {{ number_format($cliente->limite_credito - $cliente->saldo_actual, 2) }}</p>
+            </div>
+        </div>
+    </div>
+
+    @if($mes > 0)
+    <!-- Estado de Cuenta Mensual -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+        <div class="p-6 border-b">
+            <h3 class="text-xl font-bold text-slate-800">
+                Estado de Cuenta - {{ $nombreMes }} {{ $año }}
+            </h3>
+        </div>
+
+        <div class="p-6">
+            <!-- Saldo Anterior -->
+            <div class="mb-6 p-4 bg-gray-50 rounded-lg border-l-4 border-gray-400">
+                <div class="flex justify-between items-center">
+                    <span class="font-semibold text-slate-700">Saldo Anterior ({{ $mesAnteriorNombre }} {{ $añoAnterior }})</span>
+                    <span class="text-xl font-bold text-gray-700">B/. {{ number_format($saldoAnterior, 2) }}</span>
+                </div>
+            </div>
+
+            <!-- Movimientos del Mes -->
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Documento</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cargos</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Abonos</th>
+                            <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        @php $saldoAcumulado = $saldoAnterior; @endphp
+                        
+                        @forelse($movimientos as $mov)
+                        @php
+                            $saldoAcumulado += $mov->cargo - $mov->abono;
+                        @endphp
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 whitespace-nowrap text-sm">{{ $mov->fecha->format('d/m/Y') }}</td>
+                            <td class="px-4 py-3 whitespace-nowrap">
+                                @if($mov->tipo === 'factura')
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                    <i class="bi bi-receipt mr-1"></i> Factura
+                                </span>
+                                @elseif($mov->tipo === 'cobro')
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                    <i class="bi bi-cash-coin mr-1"></i> Cobro
+                                </span>
+                                @else
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                                    <i class="bi bi-arrow-return-left mr-1"></i> N/C
+                                </span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-3 whitespace-nowrap font-mono text-sm">{{ $mov->numero }}</td>
+                            <td class="px-4 py-3 text-sm">{{ $mov->descripcion }}</td>
+                            <td class="px-4 py-3 text-right font-semibold text-red-600">
+                                {{ $mov->cargo > 0 ? 'B/. ' . number_format($mov->cargo, 2) : '-' }}
+                            </td>
+                            <td class="px-4 py-3 text-right font-semibold text-green-600">
+                                {{ $mov->abono > 0 ? 'B/. ' . number_format($mov->abono, 2) : '-' }}
+                            </td>
+                            <td class="px-4 py-3 text-right font-bold text-slate-700">
+                                B/. {{ number_format($saldoAcumulado, 2) }}
+                            </td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="7" class="px-4 py-8 text-center text-slate-500">
+                                No hay movimientos en este período
+                            </td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                    <tfoot class="bg-gray-50 font-bold">
+                        <tr>
+                            <td colspan="4" class="px-4 py-3 text-right">TOTALES DEL MES:</td>
+                            <td class="px-4 py-3 text-right text-red-700">B/. {{ number_format($totalCargos, 2) }}</td>
+                            <td class="px-4 py-3 text-right text-green-700">B/. {{ number_format($totalAbonos, 2) }}</td>
+                            <td class="px-4 py-3 text-right text-blue-700">B/. {{ number_format($saldoFinal, 2) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    @else
+    <!-- Resumen Anual -->
+    <div class="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+        <div class="p-6 border-b">
+            <h3 class="text-xl font-bold text-slate-800">Resumen Anual - {{ $año }}</h3>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Mes</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo Inicial</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Facturas</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cobros</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">N/C</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Saldo Final</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Ver</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    @foreach($resumenAnual as $resumen)
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 font-medium">{{ $resumen['mes_nombre'] }}</td>
+                        <td class="px-6 py-4 text-right">B/. {{ number_format($resumen['saldo_inicial'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-red-600 font-semibold">B/. {{ number_format($resumen['facturas'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-green-600 font-semibold">B/. {{ number_format($resumen['cobros'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-blue-600 font-semibold">B/. {{ number_format($resumen['notas_credito'], 2) }}</td>
+                        <td class="px-6 py-4 text-right font-bold text-slate-700">B/. {{ number_format($resumen['saldo_final'], 2) }}</td>
+                        <td class="px-6 py-4 text-center">
+                            <a href="{{ route('reportes.estado-cuenta', ['cliente_id' => $cliente->id, 'año' => $año, 'mes' => $resumen['mes']]) }}" 
+                               class="text-blue-600 hover:text-blue-900">
+                                <i class="bi bi-eye text-lg"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+                <tfoot class="bg-gray-50 font-bold">
+                    <tr>
+                        <td class="px-6 py-4">TOTALES {{ $año }}</td>
+                        <td class="px-6 py-4 text-right">-</td>
+                        <td class="px-6 py-4 text-right text-red-700">B/. {{ number_format($totalesAnuales['facturas'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-green-700">B/. {{ number_format($totalesAnuales['cobros'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-blue-700">B/. {{ number_format($totalesAnuales['notas_credito'], 2) }}</td>
+                        <td class="px-6 py-4 text-right text-blue-700">B/. {{ number_format($cliente->saldo_actual, 2) }}</td>
+                        <td class="px-6 py-4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+    @endif
+    @endif
 </div>
 
-@push('scripts')
-<script>
-function ordenEntrega() {
-    return {
-        clienteId: '',
-        sucursalId: '',
-        sucursales: [],
-        items: [],
-        
-        async cargarSucursales() {
-            if (!this.clienteId) {
-                this.sucursales = [];
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/clientes/${this.clienteId}/sucursales`);
-                const data = await response.json();
-                this.sucursales = data;
-                this.sucursalId = '';
-            } catch (error) {
-                console.error('Error cargando sucursales:', error);
-            }
-        },
-        
-        agregarProducto() {
-            this.items.push({
-                producto_id: '',
-                cantidad: 1,
-                precio_unitario: 0,
-                subtotal: 0
-            });
-        },
-        
-        eliminarProducto(index) {
-            this.items.splice(index, 1);
-        },
-        
-        actualizarPrecio(index) {
-            const select = event.target;
-            const precio = select.options[select.selectedIndex].dataset.precio;
-            this.items[index].precio_unitario = parseFloat(precio);
-            this.calcularSubtotal(index);
-        },
-        
-        calcularSubtotal(index) {
-            const item = this.items[index];
-            item.subtotal = item.cantidad * item.precio_unitario;
-        },
-        
-        calcularTotal() {
-            return this.items.reduce((total, item) => total + item.subtotal, 0);
-        },
-        
-        prepareSubmit(e) {
-            if (this.items.length === 0) {
-                e.preventDefault();
-                alert('Debe agregar al menos un producto');
-            }
-        }
-    }
+<style>
+@media print {
+    .no-print { display: none !important; }
+    body { background: white; }
 }
-</script>
-@endpush
+</style>
 @endsection
 """)
 
-create_file(f"{base_path}/ordenes-entrega/pdf.blade.php", """<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Orden de Entrega {{ $ordenEntrega->numero }}</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            color: #333;
-        }
-        .header {
-            text-align: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #2563eb;
-            padding-bottom: 10px;
-        }
-        .company-name {
-            font-size: 20px;
-            font-weight: bold;
-            color: #2563eb;
-        }
-        .document-title {
-            font-size: 16px;
-            font-weight: bold;
-            margin-top: 5px;
-        }
-        .info-section {
-            margin-bottom: 20px;
-        }
-        .info-row {
-            display: flex;
-            margin-bottom: 5px;
-        }
-        .info-label {
-            font-weight: bold;
-            width: 150px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th {
-            background-color: #2563eb;
-            color: white;
-            padding: 8px;
-            text-align: left;
-            font-size: 11px;
-        }
-        td {
-            padding: 8px;
-            border-bottom: 1px solid #ddd;
-        }
-        .text-right {
-            text-align: right;
-        }
-        .totals {
-            margin-top: 20px;
-            float: right;
-            width: 300px;
-        }
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 5px 0;
-        }
-        .total-label {
-            font-weight: bold;
-        }
-        .grand-total {
-            font-size: 16px;
-            font-weight: bold;
-            color: #2563eb;
-            border-top: 2px solid #333;
-            padding-top: 10px;
-            margin-top: 10px;
-        }
-        .footer {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            text-align: center;
-            font-size: 10px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 10px;
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <div class="company-name">{{ $ordenEntrega->empresa->razon_social }}</div>
-        <div>RUC: {{ $ordenEntrega->empresa->ruc }}</div>
-        <div>{{ $ordenEntrega->empresa->direccion }}</div>
-        <div>Tel: {{ $ordenEntrega->empresa->telefono }}</div>
-        <div class="document-title">ORDEN DE ENTREGA</div>
-        <div>{{ $ordenEntrega->numero }}</div>
-    </div>
-
-    <div class="info-section">
-        <div class="info-row">
-            <span class="info-label">Fecha:</span>
-            <span>{{ $ordenEntrega->fecha->format('d/m/Y') }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Cliente:</span>
-            <span>{{ $ordenEntrega->cliente->nombre_comercial }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">RUC/Cédula:</span>
-            <span>{{ $ordenEntrega->cliente->identificacion }}</span>
-        </div>
-        @if($ordenEntrega->clienteSucursal)
-        <div class="info-row">
-            <span class="info-label">Sucursal:</span>
-            <span>{{ $ordenEntrega->clienteSucursal->nombre }}</span>
-        </div>
-        <div class="info-row">
-            <span class="info-label">Dirección Entrega:</span>
-            <span>{{ $ordenEntrega->clienteSucursal->direccion }}</span>
-        </div>
-        @else
-        <div class="info-row">
-            <span class="info-label">Dirección:</span>
-            <span>{{ $ordenEntrega->cliente->direccion }}</span>
-        </div>
-        @endif
-        <div class="info-row">
-            <span class="info-label">Vendedor:</span>
-            <span>{{ $ordenEntrega->vendedor->name }}</span>
-        </div>
-    </div>
-
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 10%;">Cantidad</th>
-                <th style="width: 50%;">Descripción</th>
-                <th style="width: 15%;" class="text-right">Precio Unit.</th>
-                <th style="width: 10%;" class="text-right">ITBMS</th>
-                <th style="width: 15%;" class="text-right">Total</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach($ordenEntrega->detalles as $detalle)
-            <tr>
-                <td>{{ $detalle->cantidad }}</td>
-                <td>{{ $detalle->producto->nombre }}</td>
-                <td class="text-right">B/. {{ number_format($detalle->precio_unitario, 2) }}</td>
-                <td class="text-right">B/. {{ number_format($detalle->itbms_monto, 2) }}</td>
-                <td class="text-right">B/. {{ number_format($detalle->total, 2) }}</td>
-            </tr>
-            @endforeach
-        </tbody>
-    </table>
-
-    <div class="totals">
-        <div class="total-row">
-            <span class="total-label">Subtotal:</span>
-            <span>B/. {{ number_format($ordenEntrega->subtotal, 2) }}</span>
-        </div>
-        <div class="total-row">
-            <span class="total-label">ITBMS (7%):</span>
-            <span>B/. {{ number_format($ordenEntrega->itbms, 2) }}</span>
-        </div>
-        <div class="total-row grand-total">
-            <span class="total-label">TOTAL:</span>
-            <span>B/. {{ number_format($ordenEntrega->total, 2) }}</span>
-        </div>
-    </div>
-
-    <div style="clear: both; margin-top: 100px;">
-        @if($ordenEntrega->observaciones)
-        <div style="margin-top: 20px;">
-            <strong>Observaciones:</strong>
-            <p>{{ $ordenEntrega->observaciones }}</p>
-        </div>
-        @endif
-
-        <div style="margin-top: 50px;">
-            <div style="display: inline-block; width: 45%; text-align: center; border-top: 1px solid #333;">
-                Firma Vendedor
-            </div>
-            <div style="display: inline-block; width: 45%; margin-left: 9%; text-align: center; border-top: 1px solid #333;">
-                Firma Cliente
-            </div>
-        </div>
-    </div>
-
-    <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i:s') }}
-    </div>
-</body>
-</html>
-""")
-
-print("\n✅ Vistas de Orden de Entrega actualizadas con:")
-print("   - Campo de sucursal del cliente")
-print("   - PDF de orden de entrega")
-print("\nEjecuta:")
-print("php artisan migrate")
-print("python generate_orden_entrega_updated.py")
+print("✅ Vista de Estado de Cuenta creada")
+print("\nAhora crea el controlador con:")
+print("Ejecuta: python generate_estado_cuenta_complete.py")

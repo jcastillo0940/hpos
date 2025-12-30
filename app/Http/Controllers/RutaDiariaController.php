@@ -10,6 +10,7 @@ use App\Models\Bodega;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class RutaDiariaController extends Controller
 {
@@ -79,20 +80,114 @@ class RutaDiariaController extends Controller
                 ]);
             }
             
-            return redirect()->route('rutas-diarias.show', $rutaDiaria)
+            return redirect()->route('rutas-diarias.show', $rutaDiaria->id)
                 ->with('success', 'Ruta creada exitosamente');
         });
     }
 
-    public function show(RutaDiaria $rutaDiaria)
+    public function show($id)
     {
-        $rutaDiaria->load(['repartidor', 'ruta', 'bodega', 'detalles.factura.cliente']);
+        $rutaDiaria = RutaDiaria::with(['repartidor', 'ruta', 'bodega', 'detalles.factura.cliente'])
+            ->findOrFail($id);
         
         return view('rutas-diarias.show', compact('rutaDiaria'));
     }
 
-    public function iniciar(RutaDiaria $rutaDiaria)
+    public function edit($id)
     {
+        $rutaDiaria = RutaDiaria::with(['detalles'])->findOrFail($id);
+        
+        if ($rutaDiaria->estado !== 'pendiente') {
+            return redirect()->route('rutas-diarias.show', $id)
+                ->with('error', 'Solo se pueden editar rutas en estado pendiente');
+        }
+        
+        $repartidores = User::where('empresa_id', auth()->user()->empresa_id)
+            ->role('Repartidor')
+            ->get();
+        
+        $bodegas = Bodega::empresaActual()
+            ->where('tipo', 'movil')
+            ->where('activa', true)
+            ->get();
+        
+        $rutas = Ruta::empresaActual()->where('activa', true)->get();
+        
+        $facturasPendientes = Factura::empresaActual()
+            ->where('estado', 'pendiente')
+            ->with('cliente')
+            ->get();
+        
+        return view('rutas-diarias.edit', compact('rutaDiaria', 'repartidores', 'bodegas', 'rutas', 'facturasPendientes'));
+    }
+
+    public function update(Request $request, $id)
+    {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
+        if ($rutaDiaria->estado !== 'pendiente') {
+            return redirect()->route('rutas-diarias.show', $id)
+                ->with('error', 'Solo se pueden editar rutas en estado pendiente');
+        }
+        
+        $validated = $request->validate([
+            'repartidor_id' => 'required|exists:users,id',
+            'bodega_id' => 'nullable|exists:bodegas,id',
+            'ruta_id' => 'nullable|exists:rutas,id',
+            'fecha' => 'required|date',
+            'facturas' => 'required|array|min:1',
+            'facturas.*' => 'exists:facturas,id',
+        ]);
+
+        return DB::transaction(function () use ($rutaDiaria, $validated) {
+            $rutaDiaria->update([
+                'fecha' => $validated['fecha'],
+                'repartidor_id' => $validated['repartidor_id'],
+                'bodega_id' => $validated['bodega_id'] ?? null,
+                'ruta_id' => $validated['ruta_id'] ?? null,
+            ]);
+            
+            // Eliminar detalles antiguos
+            $rutaDiaria->detalles()->delete();
+            
+            // Crear nuevos detalles
+            $orden = 1;
+            foreach ($validated['facturas'] as $facturaId) {
+                $factura = Factura::find($facturaId);
+                
+                RutaDiariaDetalle::create([
+                    'ruta_diaria_id' => $rutaDiaria->id,
+                    'factura_id' => $facturaId,
+                    'cliente_id' => $factura->cliente_id,
+                    'orden' => $orden++,
+                    'estado' => 'pendiente',
+                ]);
+            }
+            
+            return redirect()->route('rutas-diarias.show', $rutaDiaria->id)
+                ->with('success', 'Ruta actualizada exitosamente');
+        });
+    }
+
+    public function destroy($id)
+    {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
+        if ($rutaDiaria->estado !== 'pendiente') {
+            return redirect()->route('rutas-diarias.index')
+                ->with('error', 'Solo se pueden eliminar rutas en estado pendiente');
+        }
+        
+        $rutaDiaria->delete();
+        
+        return redirect()->route('rutas-diarias.index')
+            ->with('success', 'Ruta eliminada exitosamente');
+    }
+
+    public function iniciar($id)
+    {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
         $rutaDiaria->update([
             'estado' => 'en_proceso',
             'fecha_inicio' => now(),
@@ -101,8 +196,10 @@ class RutaDiariaController extends Controller
         return redirect()->back()->with('success', 'Ruta iniciada');
     }
 
-    public function finalizar(RutaDiaria $rutaDiaria)
+    public function finalizar($id)
     {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
         $rutaDiaria->update([
             'estado' => 'completada',
             'fecha_fin' => now(),
@@ -111,8 +208,10 @@ class RutaDiariaController extends Controller
         return redirect()->back()->with('success', 'Ruta finalizada');
     }
 
-    public function registrarEntrega(Request $request, RutaDiaria $rutaDiaria)
+    public function registrarEntrega(Request $request, $id)
     {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
         $validated = $request->validate([
             'detalle_id' => 'required|exists:rutas_diarias_detalle,id',
             'estado' => 'required|in:entregada,rechazada,parcial',
@@ -129,6 +228,7 @@ class RutaDiariaController extends Controller
             'fecha_entrega' => now(),
             'forma_pago' => $validated['forma_pago'] ?? null,
             'monto_cobrado' => $validated['monto_cobrado'] ?? 0,
+
         ];
         
         if ($request->has('firma')) {
@@ -148,8 +248,10 @@ class RutaDiariaController extends Controller
         return response()->json(['success' => true, 'message' => 'Entrega registrada']);
     }
 
-    public function liquidar(Request $request, RutaDiaria $rutaDiaria)
+    public function liquidar(Request $request, $id)
     {
+        $rutaDiaria = RutaDiaria::findOrFail($id);
+        
         $validated = $request->validate([
             'efectivo_entregado' => 'required|numeric|min:0',
         ]);
@@ -167,6 +269,16 @@ class RutaDiariaController extends Controller
         });
         
         return redirect()->back()->with('success', 'Ruta liquidada exitosamente');
+    }
+
+    public function pdf($id)
+    {
+        $rutaDiaria = RutaDiaria::with(['repartidor', 'ruta', 'bodega', 'detalles.factura.cliente'])
+            ->findOrFail($id);
+        
+        $pdf = \PDF::loadView('rutas-diarias.pdf', compact('rutaDiaria'));
+        
+        return $pdf->stream("ruta-diaria-{$rutaDiaria->numero}.pdf");
     }
 
     protected function actualizarTotales(RutaDiaria $rutaDiaria)
@@ -193,7 +305,7 @@ class RutaDiariaController extends Controller
         $image = str_replace(' ', '+', $image);
         $imageName = 'firma_' . time() . '.png';
         
-        \Storage::disk('public')->put('firmas/' . $imageName, base64_decode($image));
+        Storage::disk('public')->put('firmas/' . $imageName, base64_decode($image));
         
         return 'firmas/' . $imageName;
     }

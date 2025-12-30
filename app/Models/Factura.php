@@ -8,10 +8,26 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Factura extends BaseModel
 {
     protected $fillable = [
-        'empresa_id', 'numero', 'fecha', 'fecha_vencimiento', 'cliente_id',
-        'vendedor_id', 'subtotal', 'descuento', 'itbms', 'total',
-        'tipo_pago', 'saldo_pendiente', 'estado', 'cufe', 'xml_path',
-        'pdf_path', 'observaciones'
+        'empresa_id',
+        'numero',
+        'fecha',
+        'fecha_vencimiento',
+        'cliente_id',
+        'cliente_sucursal_id',
+        'vendedor_id',
+        'orden_entrega_id',
+        'subtotal',
+        'descuento',
+        'itbms',
+        'total',
+        'tipo_pago',
+        'saldo_pendiente',
+        'estado',
+        'cufe',
+        'xml_path',
+        'pdf_path',
+        'observaciones',
+        'anulada_motivo',
     ];
 
     protected $casts = [
@@ -34,9 +50,19 @@ class Factura extends BaseModel
         return $this->belongsTo(Cliente::class);
     }
 
+    public function clienteSucursal(): BelongsTo
+    {
+        return $this->belongsTo(ClienteSucursal::class);
+    }
+
     public function vendedor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'vendedor_id');
+    }
+
+    public function ordenEntrega(): BelongsTo
+    {
+        return $this->belongsTo(OrdenEntrega::class);
     }
 
     public function detalles(): HasMany

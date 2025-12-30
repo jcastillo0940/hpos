@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\OrdenEntrega;
 use App\Models\OrdenEntregaDetalle;
+use App\Models\Factura;
+use App\Models\FacturaDetalle;
 use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\Bodega;
@@ -177,24 +179,90 @@ class OrdenEntregaController extends Controller
     }
 
     public function convertirFactura(Request $request)
-    {
-        $validated = $request->validate([
-            'ordenes' => 'required|array|min:1',
-            'ordenes.*' => 'exists:ordenes_entrega,id',
+{
+    // Decodificar el JSON si viene como string
+    $ordenesData = $request->input('ordenes');
+    
+    if (is_string($ordenesData)) {
+        $ordenesData = json_decode($ordenesData, true);
+    }
+    
+    $validated = validator(['ordenes' => $ordenesData], [
+        'ordenes' => 'required|array|min:1',
+        'ordenes.*' => 'integer|exists:ordenes_entrega,id',
+    ])->validate();
+
+    $ordenesIds = $validated['ordenes'];
+
+    return DB::transaction(function () use ($ordenesIds) {
+        $ordenes = OrdenEntrega::with(['cliente', 'clienteSucursal', 'vendedor', 'detalles.producto'])
+            ->whereIn('id', $ordenesIds)
+            ->where('estado', 'aprobada')
+            ->get();
+
+        if ($ordenes->isEmpty()) {
+            return redirect()->back()->with('error', 'No hay órdenes aprobadas para convertir');
+        }
+
+        $primeraOrden = $ordenes->first();
+        $clienteId = $primeraOrden->cliente_id;
+
+        foreach ($ordenes as $orden) {
+            if ($orden->cliente_id != $clienteId) {
+                return redirect()->back()->with('error', 'Todas las órdenes deben ser del mismo cliente');
+            }
+        }
+
+        $subtotal = 0;
+        $itbms = 0;
+        $total = 0;
+
+        foreach ($ordenes as $orden) {
+            $subtotal += $orden->subtotal;
+            $itbms += $orden->itbms;
+            $total += $orden->total;
+        }
+
+        $numeroFactura = 'FAC-' . date('Ymd') . '-' . str_pad(Factura::where('empresa_id', auth()->user()->empresa_id)->count() + 1, 5, '0', STR_PAD_LEFT);
+
+        $factura = Factura::create([
+            'empresa_id' => auth()->user()->empresa_id,
+            'numero' => $numeroFactura,
+            'cliente_id' => $clienteId,
+            'cliente_sucursal_id' => $primeraOrden->cliente_sucursal_id,
+            'vendedor_id' => $primeraOrden->vendedor_id,
+            'fecha' => now(),
+            'fecha_vencimiento' => now()->addDays($primeraOrden->cliente->dias_credito ?? 30),
+            'subtotal' => $subtotal,
+            'itbms' => $itbms,
+            'total' => $total,
+            'saldo_pendiente' => $total,
+            'estado' => 'pendiente',
+            'observaciones' => 'Generada desde órdenes: ' . $ordenes->pluck('numero')->implode(', '),
         ]);
 
-        return DB::transaction(function () use ($validated) {
-            foreach ($validated['ordenes'] as $ordenId) {
-                $orden = OrdenEntrega::findOrFail($ordenId);
-                
-                if ($orden->estado != 'aprobada') {
-                    continue;
-                }
-                
-                $orden->update(['estado' => 'facturada']);
+        foreach ($ordenes as $orden) {
+            foreach ($orden->detalles as $detalle) {
+                FacturaDetalle::create([
+                    'factura_id' => $factura->id,
+                    'producto_id' => $detalle->producto_id,
+                    'cantidad' => $detalle->cantidad,
+                    'precio_unitario' => $detalle->precio_unitario,
+                    'subtotal' => $detalle->subtotal,
+                    'itbms_porcentaje' => $detalle->itbms_porcentaje,
+                    'itbms_monto' => $detalle->itbms_monto,
+                    'total' => $detalle->total,
+                ]);
             }
-            
-            return redirect()->back()->with('success', 'Órdenes convertidas a facturas exitosamente');
-        });
-    }
+
+            $orden->update([
+                'estado' => 'facturada',
+                'factura_id' => $factura->id,
+            ]);
+        }
+
+        return redirect()->route('facturas.show', $factura)
+            ->with('success', 'Factura generada exitosamente desde ' . $ordenes->count() . ' orden(es)');
+    });
+}
 }

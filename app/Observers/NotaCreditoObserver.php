@@ -25,8 +25,29 @@ class NotaCreditoObserver
             $this->registrarMerma($notaCredito);
         }
         
-        $this->actualizarSaldoCliente($notaCredito);
-        $this->actualizarSaldoFactura($notaCredito);
+        if ($notaCredito->factura) {
+            $this->actualizarSaldoFactura($notaCredito);
+        }
+        
+        // Actualizar saldos usando el método del modelo
+        if ($notaCredito->cliente) {
+            $notaCredito->cliente->actualizarSaldos();
+        }
+    }
+
+    public function updated(NotaCredito $notaCredito)
+    {
+        // Si cambió el estado, actualizar saldos
+        if ($notaCredito->isDirty('estado') && $notaCredito->cliente) {
+            $notaCredito->cliente->actualizarSaldos();
+        }
+    }
+
+    public function deleted(NotaCredito $notaCredito)
+    {
+        if ($notaCredito->cliente) {
+            $notaCredito->cliente->actualizarSaldos();
+        }
     }
 
     protected function generarAsientoNotaCredito(NotaCredito $notaCredito)
@@ -153,13 +174,6 @@ class NotaCreditoObserver
                 ],
             ],
         ]);
-    }
-
-    protected function actualizarSaldoCliente(NotaCredito $notaCredito)
-    {
-        $cliente = $notaCredito->cliente;
-        $cliente->saldo_actual -= $notaCredito->total;
-        $cliente->save();
     }
 
     protected function actualizarSaldoFactura(NotaCredito $notaCredito)

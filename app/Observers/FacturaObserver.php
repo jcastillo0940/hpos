@@ -19,7 +19,29 @@ class FacturaObserver
         $this->generarAsientoVenta($factura);
         $this->generarAsientoCostoVenta($factura);
         $this->descontarInventario($factura);
-        $this->actualizarSaldoCliente($factura);
+        
+        // Actualizar saldos usando el método del modelo
+        if ($factura->cliente) {
+            $factura->cliente->actualizarSaldos();
+        }
+    }
+
+    public function updated(Factura $factura)
+    {
+        // Actualizar saldos si cambió el estado o saldo pendiente
+        if ($factura->isDirty(['estado', 'saldo_pendiente', 'total'])) {
+            if ($factura->cliente) {
+                $factura->cliente->actualizarSaldos();
+            }
+        }
+    }
+
+    public function deleted(Factura $factura)
+    {
+        // Actualizar saldos cuando se elimina
+        if ($factura->cliente) {
+            $factura->cliente->actualizarSaldos();
+        }
     }
 
     protected function generarAsientoVenta(Factura $factura)
@@ -105,12 +127,5 @@ class FacturaObserver
                 $stock->save();
             }
         }
-    }
-
-    protected function actualizarSaldoCliente(Factura $factura)
-    {
-        $cliente = $factura->cliente;
-        $cliente->saldo_actual += $factura->total;
-        $cliente->save();
     }
 }
