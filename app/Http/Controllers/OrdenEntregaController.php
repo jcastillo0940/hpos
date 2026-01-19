@@ -52,7 +52,7 @@ class OrdenEntregaController extends Controller
             $itbms = 0;
 
             foreach ($request->detalles as $detalle) {
-                $producto = Producto::find($detalle['producto_id']);
+                $producto = Producto::findOrFail($detalle['producto_id']);
                 $subtotalLinea = $detalle['cantidad'] * $detalle['precio_unitario'];
                 $itbmsLinea = $subtotalLinea * ($producto->itbms / 100);
                 
@@ -79,7 +79,7 @@ class OrdenEntregaController extends Controller
             ]);
 
             foreach ($request->detalles as $detalle) {
-                $producto = Producto::find($detalle['producto_id']);
+                $producto = Producto::findOrFail($detalle['producto_id']);
                 $subtotalLinea = $detalle['cantidad'] * $detalle['precio_unitario'];
                 $itbmsLinea = $subtotalLinea * ($producto->itbms / 100);
                 $totalLinea = $subtotalLinea + $itbmsLinea;
